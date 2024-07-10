@@ -1,0 +1,114 @@
+#!/bin/bash
+source src/functions.sh
+
+exe=$0
+
+## gestion d'erreur
+if [ -z $1 ]
+then
+    printf "Usage: %s <root_directory/config>\n" $0
+    exit 84
+else
+    ## initialisation du config file
+    config=$1
+    if [ ! -f $config ]
+    then
+        exit 84
+    fi
+    IFS=";"
+    count=0
+    exec_name=""
+    compilation=""
+while read -r line
+do
+    array=($line)
+    case "${array[0]}" in
+        "PROJECT_DIR")
+            proj_dir=${array[1]}
+            ;;
+        "SOURCES_DIR")
+            src_dir=${array[1]}
+            ;;
+        "HEADERS_DIR")
+            headers_dir=${array[1]}
+            ;;
+        "LIBS_DIR")
+            lib_dir=${array[1]}
+            ;;
+        "EXEC")
+            exec_name=${array[1]}
+            ;;
+        "CC")
+            compilation=${array[1]}
+            ;;
+        "CFLAGS")
+            compilation_flags=${array[1]}
+            ;;
+        "LDFLAGS")
+            linking_flags=${array[1]}
+            ;;
+        "BCK_DIR")
+            backup_dir=${array[1]}
+            ;;
+        "ZIP")
+            compression_binary=${array[1]}
+            ;;
+        "ZIPFLAGS")
+            compression_flags=${array[1]}
+            ;;
+        "UNZIP")
+            decompression_binary=${array[1]}
+            ;;
+        "UNZIPFLAGS")
+            decompression_flags=${array[1]}
+            ;;
+        *.c)
+            sources[count]=${array[0]}
+            ((count++))
+            ;;
+    esac
+    done < $config
+    ## gestion d'erreur si le root nexiste pas
+    if [ -z $proj_dir ]
+    then
+        exit 84
+    fi
+
+    [ -z "$exec_name" ] && exec_name="a.out"
+    [ -z "$compilation" ] && compilation="gcc"
+
+    makefile_header
+
+    if [[ $src_dir == "." ]]
+    then
+        src_dir="./"
+    fi
+    write_makefile "SRC_DIR" "${src_dir}/"
+    directories "LIB_DIR" $lib_dir
+    directories "HEA_DIR" $headers_dir
+    write_makefile "NAME" $exec_name
+    for ((i=0; $i < $count; i++)) ## nb de fichiers .c, affiche chacun d fichiers (dependant de leur emplacemnt aussi)
+    do
+        if [ $i == 0 ]
+        then
+            echo -e "SRC\t=\t\$(SRC_DIR)${sources[$i]}\t\\" >> Makefile
+        else
+            echo -e "\t\t\$(SRC_DIR)${sources[$i]}\t\\" >> Makefile
+        fi
+    done
+    write_makefile "\nCC" $compilation
+    write_makefile "OBJ" "\$(SRC:.c=.o)" >> Makefile
+    write_flags "CFLAGS" $compilation_flags
+    write_makefile "LDFLAGS" $linking_flags
+    write_makefile "BCK_DIR" $backup_dir
+    write_makefile "ZIP" $compression_binary
+    write_makefile "ZIPFLAGS" $compression_flags
+    write_makefile "UNZIP" $decompression_binary
+    write_makefile "UNZIPFLAGS" $decompression_flags
+    execute
+    clean_rules
+fi
+
+file=$(dirname $config) ## on met le path dans file pr trouver le config file --> file c'est fakeProj donc le root
+
+mv Makefile $file ## mettre le makefile dans le root
